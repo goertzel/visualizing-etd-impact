@@ -1,6 +1,7 @@
 //=========================================================================================
-// Code is adapted from Kerry Rodden's "Zoomable sunburst with updating data" Block
-// Which can be found at http://bl.ocks.org/kerryrodden/477c1bfb081b783f80ad
+// Code is adapted from Kerry Rodden's "Zoomable sunburst with updating data" 
+// (http://bl.ocks.org/kerryrodden/477c1bfb081b783f80ad) and "Sequences Sunburst" 
+// (https://bl.ocks.org/kerryrodden/7090426) Blocks
 // And Joshuah Latimore’s Block "JsonToPartiontion"
 // Found here http://bl.ocks.org/jsl6906/ad15363febc1be45301b
 //
@@ -30,18 +31,18 @@
 
 
 //=========================================================================================
-// Setup and variable
+// Setup and global variables
 //=========================================================================================
 
+// Used to put slight delay before redrawing graph after window resize
 var globalResizeTimer = null;
 
+// Dimensions of the page
 width =  window.innerWidth  || document.documentElement.clientWidth  || document.body.clientWidth;
 height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
 
-
 // Radius of visualization
 radius = Math.min(width, height)*(.35);
-// var radius = 340;
 
 // Color scale for first level of nodes
 var hue = d3.scale.category20();
@@ -49,9 +50,7 @@ var hue = d3.scale.category20();
 // Breadcrumb dimensions: width, height, spacing, width of tip/tail.
 var b = {w: 125, h: 30, s: 3, t: 10};
 
-// style="display:block" style="margin:auto"
 // SVG that contains the chart
-
 var svg = d3.select('#graph').append('svg')
     .attr('id', 'visualization')
     .attr('width',  width)
@@ -59,13 +58,14 @@ var svg = d3.select('#graph').append('svg')
   .append('g')
     .attr('transform', 'translate('+(width/2)+','+(height/2 - 75)+')');
 
-// The paths for the node blocks
+// Used to calculate paths for the node blocks
 var arc = d3.svg.arc()
     .startAngle( function(d) { return d.x; })
     .endAngle(   function(d) { return d.x + d.dx ; })
     .innerRadius(function(d) { return radius / 3 * d.depth; })
     .outerRadius(function(d) { return radius / 3 * (d.depth + 1) - 0.1; });
 
+// Used when drawing a white border around graph for smoother animations
 var borderArc = d3.svg.arc()
   		.innerRadius(radius)
   		.outerRadius(radius+200)
@@ -105,41 +105,46 @@ d3.csv('CleanCSV.csv', function (error, data) {
 });  
 //=========================================================================================
 
+//=========================================================================================
+// Resizing functionality
+//=========================================================================================
 
+// Resise the visual if the window changes size
 window.onresize = resizeDelay;
 
 // Calls resize function 150ms after window resize
 function resizeDelay() {
   if(globalResizeTimer != null) window.clearTimeout(globalResizeTimer);
-    globalResizeTimer = window.setTimeout(function() {
-        resizeGraph();
-    }, 150);
+    globalResizeTimer = window.setTimeout(function() {resizeGraph();}, 150);
 }
 
 // Adjusts content to fit window
 function resizeGraph() {
+  // Update the global variables and setup to reflect new window size
+
   width =  window.innerWidth  || document.documentElement.clientWidth  || document.body.clientWidth;
   height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
-
   radius = Math.min(width, height)*(.35);
 
+  // Remove current graph
   var div = document.getElementById('graph');
-  while(div.firstChild){
-    div.removeChild(div.firstChild);
-  }
+  while(div.firstChild){ div.removeChild(div.firstChild); }
 
+  // Create new svg
   svg = d3.select("#graph").append("svg")
       .attr("width",  width)
       .attr("height", height)
     .append("g")
       .attr("transform", "translate("+(width/2)+","+(height/2 - 75)+")");
 
+  // Redefine arc used for border 
   borderArc = d3.svg.arc()
   		.innerRadius(radius)
   		.outerRadius(radius+200)
   		.startAngle(0)
   		.endAngle(2 * Math.PI);
 
+  // Recreate graph and labels
   root = formatPartition(parsedCSV, 1);               // Turn csv data array into properly formatted hierarchy for sunburst graph
   currentRoot = currentCenter = root;                 // Initializd references to root
   drawGraph();
@@ -159,19 +164,16 @@ function refreshGraph(sortList) {
   root = formatPartition(parsedCSV);            // Turn csv data array into properly formatted hierarchy for sunburst graph
   currentRoot = currentCenter = root;           // Initialize references to root
   createInfoLabels(root);                       // Creates elements to display relevant info about current node
-  // pathLevel = [];
   drawGraph();                                  // Inital draw paths for node blocks
 }
 
 // Called if a filter is selected
 function filterGraph(filterList) {
-  // var filter = filterList.value;
   var newCSV = parsedCSV;
   currentFilterType = filterList.value;
   root = formatPartition(newCSV); 
   currentRoot = currentCenter = root;
   drawGraph();  
-  // pathLevel = [];
   createInfoLabels(root);                                   
   d3.select('#trail').select('g').select('text')[0][0].innerHTML = root.name; 
 }
@@ -183,6 +185,7 @@ function filterGraph(filterList) {
 // in order to maintain good comprehension of visualization 
 //=========================================================================================
 function formatPartition(data) {
+  // If a filter has been applied, remove unrelevant items
   if (currentFilterType != 'none')
     data = data.filter(function(i){ return i.degree_topic.trim() == currentFilterType; })
 
@@ -212,10 +215,8 @@ function formatPartition(data) {
     });
 
   // Redefine the value function to use the previously-computed sum.
-  // Change the 'depth < 2' to change max levels shown at once
   partition
     .children(function(d, depth) { return depth < 2 ? d._children : null; })
-    // .value(function(d) { return d.arcSize; });
 
   // Update Root Name
   if (currentFilterType != 'none') root.name = currentFilterType;
@@ -242,7 +243,6 @@ function nestSelector(data, index, filter) {
       .key(function(d) { return d.degree_field; })
       .key(function(d) { return d.year; })
       .key(function(d) { return d.title; })
-      // .rollup(function(leaves) { return leaves;})
       .entries(data) };
   }
   // Sort Degree_Level > Year > Degree_Name
@@ -285,6 +285,7 @@ function renameKeys(d) {
 
 //=========================================================================================
 // Creates the key for nodes by concatenating path into string
+// Key is used to determine which directoin animations go
 //=========================================================================================
 function key(d) {
   var k = [], p = d;
@@ -304,7 +305,7 @@ function fill(d) {
   else { 
     var colorAdjust = d3.scale.linear().domain([0,d.parent.children.length]).range([-20,25]);
     var fill_info   = d3.hcl(d.parent.fill);
-    fill_info.l    *= 1.1;
+    fill_info.l    *= 1.09;
     fill_info.h    += colorAdjust(d.parent.children.indexOf(d));
   } 
   return fill_info;
@@ -380,7 +381,7 @@ function groupByDownloads(root) {
 
       // Add the remainder (i.e. sumDownloads(other.children) - other.arcSize) to the first 9 children of root
       // This keeps arc size ratios more consistent with download count
-      for (i = 0; i < 9; i++)
+      for (i = 0; i < 9; i++) 
         root.children[i].arcSize += Math.round(remainder * (root.children[i].downloads/(root.downloads - otherDownloadCount))); 
 
       // Make Other a child of the current node
@@ -524,7 +525,6 @@ function zoomIn(p) {
   if (p.hasOwnProperty('original') && (p.depth == 1)) 
     freezeBreadCrumb = true;
 
-
   if (p.depth > 1) p = p.parent;
   if (!p.children) {          // Update breadcrumb and re-freeze
     updateBreadcrumbs(getAncestors(p));
@@ -554,13 +554,7 @@ function zoom(root, p) {
       exitArc,
       outsideAngle = d3.scale.linear().domain([0, 2 * Math.PI]);
 
-
-  // function insideArc(d) {
-  //   return p.key > d.key
-  //       ? {depth: (d.depth > 1) ? d.depth-1 : d.depth, x: 0, dx: 0} : p.key < d.key
-  //       ? {depth: (d.depth > 1) ? d.depth-1 : d.depth, x: 2 * Math.PI, dx: 0}
-  //       : {depth: (d.depth > 1) ? 0 : 1, x: 0, dx: 2 * Math.PI};
-  // }
+  // Used to calculate coordinates of the inner arc of a block
   function insideArc(d) {
     return p.key > d.key
         ? {depth: d.depth - 1, x: 0, dx: 0} : p.key < d.key
@@ -568,10 +562,9 @@ function zoom(root, p) {
         : {depth: 0, x: 0, dx: 2 * Math.PI};
   }
 
+  // Used to calculate coordinataes of the outer arc of a block
   function outsideArc(d) {
   	    return {depth: d.depth+1, x: outsideAngle(d.x), dx: outsideAngle(d.x + d.dx) - outsideAngle(d.x)};
-
-    // return {depth: (d.depth == 2) ? d.depth : d.depth+1, x: outsideAngle(d.x), dx: outsideAngle(d.x + d.dx) - outsideAngle(d.x)};
   }
 
   center.datum(root);
@@ -586,9 +579,6 @@ function zoom(root, p) {
   // Exiting outside arcs transition to the new layout.
   if (root !== p) enterArc = insideArc, exitArc = outsideArc, outsideAngle.range([p.x, p.x + p.dx]);
 
-
-  
- 
 
   // Draw new paths and remove old ones
   d3.transition().duration(750).each(function() {
@@ -611,14 +601,12 @@ function zoom(root, p) {
   });
 
 
-
- d3.select('#borderArc').remove();
+  // Remove and redraw border arc to keep it at front
+  d3.select('#borderArc').remove();
   svg.append('path')
-	.attr('id', 'borderArc')
-	.style('fill', 'white')
-	.attr('d', borderArc);
-
-
+	   .attr('id', 'borderArc')
+	   .style('fill', 'white')
+	   .attr('d', borderArc);
 
   // Remove old labels
   d3.selectAll('#nodeLabel').remove(); 
@@ -660,7 +648,6 @@ function nodeMouseOver(n) {
   // Dim all but path to current node
   svg.selectAll('path')
       .filter(function(n) { return !((ancestorList.indexOf(n) >= 0) || (n != d3.select('borderArc'))); })
-      // .transition().duration(150)
       .style('opacity', .75);
 
   // Provide info about current node
@@ -688,7 +675,6 @@ function nodeMouseOut(n) {
 
   // Restore opacity
   d3.selectAll("path")
-    // .transition().duration(150)
     .style("opacity", 1);
 
   // Get ancestors of current node - i.e root to current
@@ -717,6 +703,7 @@ function nodeMouseOut(n) {
 //=========================================================================================
 function createInfoLabels(root) {
 
+  // Create text nodes to provide contextual information in
   for (i = 0; i < 7; i++) {
     pathLevel.push(svg.append("text")
         .attr("x", 0)
@@ -726,7 +713,7 @@ function createInfoLabels(root) {
         .style("fill", "gray"));
   }
 
-  // Provide root info in center
+  // Write root info in center
   pathLevel[0].text(root.name);
   pathLevel[5].text(root.downloads+' Downloads');
   pathLevel[6].text(root.thesesCount+' Theses');
@@ -782,8 +769,8 @@ function drawGraph() {
       .text(function(d) { return cleanText(d.name).substring(0,17); });
 
 
-
-      d3.select('#borderArc').remove();
+  // Redraw border to keep at front
+  d3.select('#borderArc').remove();
   svg.append('path')
 	.attr('id', 'borderArc')
 	.style('fill', 'white')
@@ -844,21 +831,12 @@ function updateBreadcrumbs(pathArray) {
 
   // Draw node path boxes
   entering.append('svg:polygon')
-
-
-      // .style('fill', 'white')
-      // .transition().duration(1000)
       .style('fill', function(d) { return d.fill; })
-         // .attr('points', ['0,0',0 + ',0',0 + b.t + ',' + (b.h / 2),0 + ',' + b.h,'0,' + b.h,b.t + ',' + (b.h / 2)])
-    // .transition().duration(200)
-          .attr('points', breadcrumbPoints);
+      .attr('points', breadcrumbPoints);
 
 
   // Draw node path text
   entering.append('svg:text')
-      // .attr('x' , 0)
-        // .transition().duration(250)
-
       .attr('x', (b.w + b.t) / 2)
       .attr('y', b.h / 2)
       .attr('dy', '0.35em')
@@ -867,65 +845,17 @@ function updateBreadcrumbs(pathArray) {
       .attr('text-anchor', 'middle')
       .text(function(d) { return cleanText(d.name).substring(0,19); });
 
-    // Draw node path text
-  // entering.append('svg:text')
-  //     .attr('x', (b.w + b.t) / 2)
-  //     .attr('y', b.h / 2)
-  //     .attr('dy', '0.35em')
-  //     .attr('font-size', 13)
-  //     .attr('fill', 'white')
-  //     .attr('text-anchor', 'middle')
-  //     .text(function(d) { return cleanText(d.name).substring(0,20); });
 
-
-
-  // Set position for entering and updating nodes.
-   // g.attr('transform', function(d, i) { return 'translate(' + i * (b.w + b.s) + ', 0)'; });
-   // g.attr('transform', function(d, i) { return 'translate(' + i-1 * (b.w + b.s) + ', 0)'; });
-
-
+  // Set position for entering and updating nodes
   g.attr('transform', function(d, i) { return 'translate(' + i * (b.w + b.s) + ', 0)'; });
 
-  // console.log(g.exit());
-  // // Remove exiting nodes.
-  // g.exit()
-  //   .transition().duration(1000).delay(1000)
-  //   .style('fill-opacity', 0);
-
-  // g.exit().transition()
-    // .attr('transform', function(d, i) { return 'translate('  -1 * (b.w + b.s) - ', 0)'; });
-
-  // g.exit().transition().delay(1000).remove();
+  // Remove old breadcrumbs
   g.exit().remove();
-
-
-
-  // Now move and update the url at the end.
-  // d3.select('#sequence').select('#thesisLink')
-  //     .attr('x', (pathArray.length + 0.25) * (b.w + b.s))
-  //     .attr('y', b.h / 2)
-  //     .attr('dy', '0.35em')
-  //     .attr('font-size', 14)
-  //     .attr('text-anchor', 'start')
-  //     .attr('href', function() { if (pathArray.length > 0) {
-  //         var node = pathArray[pathArray.length-1];
-  //         if (node.hasOwnProperty('original')) return node.original.url; }})
-  //     .style('fill', 'blue')
-  //     .style('text-decoration', 'underline')
-  //     .text(function(){ if (pathArray.length > 0) {
-  //         var node = pathArray[pathArray.length-1];
-  //         if (node.hasOwnProperty('original')) // Is an individual article
-  //           return (node.original.title.length > 45) ? 
-  //             node.original.title.substring(0,42) + '...' : node.original.title;
-  //       } 
-  //       else return '';
-  //     });
   
   // If node being hovered over is an individual thesis, provide name with hyperlink to thesis
   if (pathArray[pathArray.length-1].hasOwnProperty('original')) 
     var link = pathArray[pathArray.length-1].original.url;
   else var link = "";
-  
 
   // Now move and update the link at the end.
   d3.select("#trail").select("#thesisLink")
@@ -958,95 +888,46 @@ function downloadCsv() {
   // Creates csv text from array of thesis objects
   var csvContent = convertToCSVText(grabOriginals(currentCenter, []));
 
+  var isSafari = /constructor/i.test(window.HTMLElement) || (function (p) { return p.toString() === "[object SafariRemoteNotification]"; })(!window['safari'] || safari.pushNotification);
 
-  // Works on Chrome and Firefox, Safari as Unknown file, not on Explorer or Edge
-  // var a = document.body.appendChild(document.createElement("a"));
-  //   a.download  = "export.csv";
-  //   a.href      = "data:octet-stream/csv;charset=utf-8," + encodeURI(csvContent);
-  //   // a.target    = "_blank"
-  //   a.innerHTML = "download csv";
-  //   a.click();
-  //   document.body.removeChild(a);
-
-
-
-  // var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  //   if (navigator.msSaveBlob) { // IE 10+
-  //       navigator.msSaveBlob(blob, 'export.csv');
-  //   } else {
-  //       var link = document.createElement("a");
-  //       if (link.download !== undefined) { // feature detection
-  //           // Browsers that support HTML5 download attribute
-  //           var url = URL.createObjectURL(blob);
-  //           link.setAttribute("href", url);
-  //           link.setAttribute("download", 'export.csv');
-  //           link.style.visibility = 'hidden';
-  //           document.body.appendChild(link);
-  //           link.click();
-  //           document.body.removeChild(link);
-  //       }
-  //   }
-
-
-
-
-// // Opera 8.0+
-// var isOpera = (!!window.opr && !!opr.addons) || !!window.opera || navigator.userAgent.indexOf(' OPR/') >= 0;
-
-// // Firefox 1.0+
-// var isFirefox = typeof InstallTrigger !== 'undefined';
-
-// // Safari 3.0+ "[object HTMLElementConstructor]" 
-var isSafari = /constructor/i.test(window.HTMLElement) || (function (p) { return p.toString() === "[object SafariRemoteNotification]"; })(!window['safari'] || safari.pushNotification);
-
-// // Internet Explorer 6-11
-// var isIE = /*@cc_on!@*/false || !!document.documentMode;
-
-// // Edge 20+
-// var isEdge = !isIE && !!window.StyleMedia;
-
-// // Chrome 1+
-// var isChrome = !!window.chrome && !!window.chrome.webstore;
-
-// // Blink engine detection
-// var isBlink = (isChrome || isOpera) && !!window.CSS;
-
-  
+  // Better download implementation is not yet available on Safari
+  // So check the browswer and provide an alternate solution if necessary
   if (isSafari){
-  // Works on Chrome and Firefox, Safari as Unknown file, not on Explorer or Edge
+    // Works on Chrome and Firefox, Safari as Unknown file, not on Explorer or Edge
     var a = document.body.appendChild(document.createElement("a"));
     a.download  = "export.csv";
     a.href      = "data:octet-stream/csv;charset=utf-8," + encodeURI(csvContent);
-    // a.target    = "_blank"
+    a.target    = "_blank"
     a.innerHTML = "download csv";
     a.click();
     document.body.removeChild(a);
   }
   else {
+    // Works on most major browswer except Safari (it will support this in version 10.1)
     var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     if (navigator.msSaveBlob) { // IE 10+
         navigator.msSaveBlob(blob, 'export.csv');
-    } else {
-        var link = document.createElement("a");
-        if (link.download !== undefined) { // feature detection
-            // Browsers that support HTML5 download attribute
-            var url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", 'export.csv');
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
+    } 
+    else {
+      var link = document.createElement("a");
+      if (link.download !== undefined) { // feature detection
+          // Browsers that support HTML5 download attribute
+          var url = URL.createObjectURL(blob);
+          link.setAttribute("href", url);
+          link.setAttribute("download", 'export.csv');
+          link.style.visibility = 'hidden';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      }
     }
   }
 
 
-
-
-
-
-
+  // Prompt if usser would like to continue to download csv
+  // Provides a short description of what data is included
+  // *Note: If browser asks if it should prevent alerts from the page,
+  //        CSV may no longer work until page is refreshed
   function promptContinue() {
     var text = "You are about to download a csv of '";
 
@@ -1072,7 +953,7 @@ var isSafari = /constructor/i.test(window.HTMLElement) || (function (p) { return
     return items;
   }
 
-  // Creates csv text from array of thesis objects
+  // Creates csv formatted text from array of thesis objects
   function convertToCSVText(items) {
     if (items.length < 1) return '';
     csvContent = getHeader(items[0]);
@@ -1098,25 +979,4 @@ var isSafari = /constructor/i.test(window.HTMLElement) || (function (p) { return
   }
 
 }
-
-// download(encodeURI(csvContent), "dlText.txt", "data:download");
-// download(encodeURI(csvContent), "export.csv", "text/csv;charset=utf-8");
-
-
-// Replaces viz
-  // var encodedUri = encodeURI(csvContent);
-  // var link = document.createElement("a");
-  // link.setAttribute("href", encodedUri);
-  // link.setAttribute("download", "data.csv");
-  // document.body.appendChild(link); // Required for FF
-
-  // link.click(); 
-
-
-// var uri = 'data:text/plain;charset=UTF-8,' + encodeURI(csvContent);
-// var uri = 'data:download/csv;charset=UTF-8,' + encodeURI(csvContent);
-// window.open(uri);
-
-
-
 
